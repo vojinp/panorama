@@ -1,0 +1,3 @@
+input/images/1Hill.JPG
+input/images/2Hill.JPG
+input/images/3Hill.JPG

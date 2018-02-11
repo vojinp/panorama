@@ -1,0 +1,5 @@
+input/images/S1.jpg
+input/images/S2.jpg
+input/images/S3.jpg
+input/images/S5.jpg
+input/images/S6.jpg

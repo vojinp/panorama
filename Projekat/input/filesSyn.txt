@@ -1,0 +1,10 @@
+input/images/Synthetic/img01.jpg
+input/images/Synthetic/img02.jpg
+input/images/Synthetic/img03.jpg
+input/images/Synthetic/img04.jpg
+input/images/Synthetic/img05.jpg
+input/images/Synthetic/img06.jpg
+input/images/Synthetic/img07.jpg
+input/images/Synthetic/img08.jpg
+input/images/Synthetic/img09.jpg
+input/images/Synthetic/img10.jpg
