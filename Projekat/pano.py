@@ -28,31 +28,47 @@ class PanoStitcher:
 				self.right_list.append(self.imgs[i])
 		self.right_list.insert(0,self.imgs[int(centerIdx)])
 
-	def warpImages(self, img1, img2, H):
-	    rows1, cols1 = img1.shape[:2]
-	    rows2, cols2 = img2.shape[:2]
+	def warpImages(self, img1, img2, H, direction):
+		rows1, cols1 = img1.shape[:2]
+		rows2, cols2 = img2.shape[:2]
 
-	    list_of_points_1 = np.float32([[0,0], [0,rows1], [cols1,rows1], [cols1,0]]).reshape(-1,1,2)
-	    temp_points = np.float32([[0,0], [0,rows2], [cols2,rows2], [cols2,0]]).reshape(-1,1,2)
-	    list_of_points_2 = cv2.perspectiveTransform(temp_points, H)
-	    list_of_points = np.concatenate((list_of_points_1, list_of_points_2), axis=0)
+		list_of_points_1 = np.float32([[0,0], [0,rows1], [cols1,rows1], [cols1,0]]).reshape(-1,1,2)
+		temp_points = np.float32([[0,0], [0,rows2], [cols2,rows2], [cols2,0]]).reshape(-1,1,2)
+		list_of_points_2 = cv2.perspectiveTransform(temp_points, H)
+		list_of_points = np.concatenate((list_of_points_1, list_of_points_2), axis=0)
 
-	    [x_min, y_min] = np.int32(list_of_points.min(axis=0).ravel() - 0.5)
-	    [x_max, y_max] = np.int32(list_of_points.max(axis=0).ravel() + 0.5)
-	    translation_dist = [-x_min, -y_min]
-	    H_translation = np.array([[1, 0, translation_dist[0]], [0, 1, translation_dist[1]], [0,0,1]]) 
+		[x_min, y_min] = np.int32(list_of_points.min(axis=0).ravel() - 0.5)
+		[x_max, y_max] = np.int32(list_of_points.max(axis=0).ravel() + 0.5)
+		translation_dist = [-x_min, -y_min]
+		H_translation = np.array([[1, 0, translation_dist[0]], [0, 1, translation_dist[1]], [0,0,1]])
 
-	    output_img = cv2.warpPerspective(img2, H_translation.dot(H), (x_max-x_min, y_max-y_min))
-	    output_img[translation_dist[1]:rows1+translation_dist[1], translation_dist[0]:cols1+translation_dist[0]] = img1
-	    
-	    return output_img
+		output_img = cv2.warpPerspective(img2, H_translation.dot(H), (x_max-x_min, y_max-y_min))
+		if self.blend:
+			op_dir = 1
+			if direction == 'left':
+				op_dir = 0
+			for y in range(translation_dist[1],rows1+translation_dist[1]):
+				for x in range(translation_dist[0],cols1+translation_dist[0]):
+					img1_pixel = img1[y-translation_dist[1],x-translation_dist[0]]
+					op = abs(op_dir-(x-translation_dist[0])/cols1)
+					inv_op = 1-op
+					if (output_img[y,x] == [0,0,0]).all():
+						output_img[y,x] = img1_pixel
+					else:
+						output_img[y,x] = output_img[y,x]*inv_op + img1_pixel*op
+
+			cv2.imshow('o', output_img)
+			cv2.waitKey()
+		else:
+			output_img[translation_dist[1]:rows1 + translation_dist[1],translation_dist[0]:cols1 + translation_dist[0]] = img1
+		return output_img
 
 	def l_stitch(self):
 		left = self.left_list[0]
 		for right in self.left_list[1:]:
 			H = self.match(left, right)
 			invH = np.linalg.inv(H)
-			left = self.warpImages(right, left, invH)
+			left = self.warpImages(right, left, invH, 'left')
 			self.count += 1
 			print('stitched {}/{} imgs'.format(self.count, len(self.imgs)))
 		self.right_list.insert(0,left[:,0:int(left.shape[1] - right.shape[1]/2)])
@@ -62,10 +78,10 @@ class PanoStitcher:
 		right = self.right_list[0]
 		for left in self.right_list[1:]:
 			H = self.match(left, right)
-			right = self.warpImages(left, right, H)
+			right = self.warpImages(left, right, H, 'right')
 			self.count += 1
 			print('stitched {}/{} imgs'.format(self.count, len(self.imgs)))
-		self.final_img = self.crop(right)
+		self.final_img = right #self.crop(right)
 
 	def crop(self, image):
 		imgray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
@@ -111,9 +127,10 @@ if __name__ == '__main__':
 	try:
 		args = sys.argv[1]
 	except:
-		args = "input/files1.txt"
+		args = "input/files2.txt"
 	print("Parameters : ", args)
 	s = PanoStitcher(args)
+	s.blend = False
 	s.l_stitch()
 	s.r_stitch()
 	cv2.imwrite("output/" + args.split('/')[1].split('.')[0] + ".jpg", s.final_img)
