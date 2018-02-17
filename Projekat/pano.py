@@ -15,8 +15,8 @@ class PanoStitcher:
 		for i in f:
 			img_names.append(i.strip())
 		for i in img_names:
-			self.imgs.append(cv2.imread(i))
-			#self.imgs.append(cv2.resize(cv2.imread(i),(480, 320)))
+			#self.imgs.append(cv2.imread(i))
+			self.imgs.append(cv2.resize(cv2.imread(i),(480, 320)))
 
 	def fill_lists(self):
 		self.left_list, self.right_list = [], []
@@ -81,7 +81,7 @@ class PanoStitcher:
 			right = self.warpImages(left, right, H, 'right')
 			self.count += 1
 			print('stitched {}/{} imgs'.format(self.count, len(self.imgs)))
-		self.final_img = right #self.crop(right)
+		self.final_img = self.crop(right)
 
 	def crop(self, image):
 		imgray = cv2.cvtColor(image,cv2.COLOR_BGR2GRAY)
@@ -122,18 +122,112 @@ class PanoStitcher:
 		keypoings, descriptors = self.surf.detectAndCompute(gray, None)
 		return {'kp':keypoings, 'des':descriptors}
 
+	def inscribe(self, img):
+		imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+		_,th2 = cv2.threshold(imgray,8,255,cv2.THRESH_BINARY)
+		im2, contours, hierarchy = cv2.findContours(th2,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+		print('Found contures', len(contours))
+
+		max_size = 0;
+		id = 0;
+		for i in range(0,len(contours)):
+			if len(contours[i]) > max_size:
+				max_size = len(contours[i])
+				id = i
+		print('Chosen id', id)
+		print('Max size', max_size)
+
+		c_sorted_x = sorted(contours[id], key=lambda point: point[0][0])
+		c_sorted_y = sorted(contours[id], key=lambda point: point[0][1])
+		print('c sorted x', c_sorted_x)
+		print('c sorted y', c_sorted_y)
+		min_x_id = 0
+		min_y_id = 0
+		max_x_id = len(c_sorted_x)-1
+		print('max x', c_sorted_x[len(c_sorted_x)-1])
+		max_y_id = len(c_sorted_y)-1
+		contour_mask = np.zeros(img.shape, dtype=np.uint8)
+		cv2.drawContours(contour_mask, contours, -1, (0, 255, 0), 1)
+		cv2.fillPoly(contour_mask, pts=contours, color=(255, 255, 255))
+		while min_x_id < max_x_id and min_y_id < max_y_id:
+			min = (c_sorted_x[min_x_id][0][0], c_sorted_y[min_y_id][0][1])
+			max = (c_sorted_x[max_x_id][0][0] - c_sorted_x[min_x_id][0][0], c_sorted_y[max_y_id][0][1] - c_sorted_y[min_y_id][0][1])
+
+
+			finished, ocTop, ocBottom, ocLeft, ocRight = self.checkInteriorExterior(contour_mask, min, max)
+			if finished:
+				break
+
+			if ocLeft:
+				min_x_id += 1
+			if ocRight:
+				max_x_id -= 1
+			if ocTop:
+				min_y_id += 1
+			if ocBottom:
+				max_y_id -= 1
+		#cv2.rectangle(contour_mask, min, max, (255,0,0), 2)
+		#cv2.imshow('cm', contour_mask)
+		#cv2.waitKey()
+		return min, max
+
+	def checkInteriorExterior(self, sub, min, max):
+		returnVal = True
+
+		cTop = 0
+		cBottom = 0
+		cLeft = 0
+		cRight = 0
+		y = min[1]
+		for x in range(min[0], max[0]):
+			if (sub[y,x] == 0).all():
+				returnVal = False
+				cTop += 1
+		y = max[1]
+		for x in range(min[0], max[0]):
+			if (sub[y,x] == 0).all():
+				returnVal = False
+				cBottom += 1
+
+		x = min[0]
+		for y in range(min[1],max[1]):
+			if (sub[y,x] == 0).all():
+				returnVal = False
+				cLeft += 1
+
+		x = max[0]
+		for y in range(min[1],max[1]):
+			if (sub[y,x] == 0).all():
+				returnVal = False
+				cRight += 1
+		if cTop >= cBottom and cTop >= cLeft and cTop >= cRight:
+			return returnVal, True, False, False, False
+		elif cBottom >= cLeft and cBottom >= cRight and cBottom >= cTop:
+			return returnVal, False, True, False, False
+		elif cLeft >= cRight and cLeft >= cBottom and cLeft >= cTop:
+			return returnVal, False, False, True, False
+		else:
+			return returnVal, False, False, False, True
+
+
+
+
 
 if __name__ == '__main__':
 	try:
 		args = sys.argv[1]
 	except:
-		args = "input/files2.txt"
+		args = "input/filesm.txt"
 	print("Parameters : ", args)
 	s = PanoStitcher(args)
 	s.blend = False
 	s.l_stitch()
 	s.r_stitch()
-	cv2.imwrite("output/" + args.split('/')[1].split('.')[0] + ".jpg", s.final_img)
-	print("image written to output/" + args.split('/')[1].split('.')[0] + ".jpg")
+	print('image size', s.final_img.shape)
+	cv2.imwrite("output/sup_" + args.split('/')[1].split('.')[0] + ".jpg", s.final_img)
+	print("image written to output/sup_" + args.split('/')[1].split('.')[0] + ".jpg")
+	ins = s.inscribe(s.final_img)
+	cv2.imwrite("output/ins_" + args.split('/')[1].split('.')[0] + ".jpg", s.final_img[ins[0][1]:ins[1][1],ins[0][0]:ins[1][0]])
+	print("image written to output/ins_" + args.split('/')[1].split('.')[0] + ".jpg")
 	cv2.destroyAllWindows()
 	
