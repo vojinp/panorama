@@ -139,12 +139,9 @@ class PanoStitcher:
 
 		c_sorted_x = sorted(contours[id], key=lambda point: point[0][0])
 		c_sorted_y = sorted(contours[id], key=lambda point: point[0][1])
-		print('c sorted x', c_sorted_x)
-		print('c sorted y', c_sorted_y)
 		min_x_id = 0
 		min_y_id = 0
 		max_x_id = len(c_sorted_x)-1
-		print('max x', c_sorted_x[len(c_sorted_x)-1])
 		max_y_id = len(c_sorted_y)-1
 		contour_mask = np.zeros(img.shape, dtype=np.uint8)
 		cv2.drawContours(contour_mask, contours, -1, (0, 255, 0), 1)
@@ -153,8 +150,8 @@ class PanoStitcher:
 			min = (c_sorted_x[min_x_id][0][0], c_sorted_y[min_y_id][0][1])
 			max = (c_sorted_x[max_x_id][0][0] - c_sorted_x[min_x_id][0][0], c_sorted_y[max_y_id][0][1] - c_sorted_y[min_y_id][0][1])
 
-
-			finished, ocTop, ocBottom, ocLeft, ocRight = self.checkInteriorExterior(contour_mask, min, max)
+			b_pixels = [1,1,1,1]
+			finished, ocTop, ocBottom, ocLeft, ocRight, b_pixels = self.checkInteriorExterior(contour_mask, min, max, b_pixels)
 			if finished:
 				break
 
@@ -171,43 +168,46 @@ class PanoStitcher:
 		#cv2.waitKey()
 		return min, max
 
-	def checkInteriorExterior(self, sub, min, max):
+	def checkInteriorExterior(self, sub, min, max, b_pixels):
 		returnVal = True
 
 		cTop = 0
 		cBottom = 0
 		cLeft = 0
 		cRight = 0
-		y = min[1]
-		for x in range(min[0], max[0]):
-			if (sub[y,x] == 0).all():
-				returnVal = False
-				cTop += 1
-		y = max[1]
-		for x in range(min[0], max[0]):
-			if (sub[y,x] == 0).all():
-				returnVal = False
-				cBottom += 1
-
-		x = min[0]
-		for y in range(min[1],max[1]):
-			if (sub[y,x] == 0).all():
-				returnVal = False
-				cLeft += 1
-
-		x = max[0]
-		for y in range(min[1],max[1]):
-			if (sub[y,x] == 0).all():
-				returnVal = False
-				cRight += 1
+		if b_pixels[0] != 0:
+			y = min[1]
+			for x in range(min[0], max[0]):
+				if (sub[y,x] == 0).all():
+					returnVal = False
+					cTop += 1
+		if b_pixels[1] != 0:
+			y = max[1]
+			for x in range(min[0], max[0]):
+				if (sub[y,x] == 0).all():
+					returnVal = False
+					cBottom += 1
+		if b_pixels[2] != 0:
+			x = min[0]
+			for y in range(min[1],max[1]):
+				if (sub[y,x] == 0).all():
+					returnVal = False
+					cLeft += 1
+		if b_pixels[3] != 0:
+			x = max[0]
+			for y in range(min[1],max[1]):
+				if (sub[y,x] == 0).all():
+					returnVal = False
+					cRight += 1
+		b_pixels = [cTop,cBottom,cLeft,cRight]
 		if cTop >= cBottom and cTop >= cLeft and cTop >= cRight:
-			return returnVal, True, False, False, False
+			return returnVal, True, False, False, False, b_pixels
 		elif cBottom >= cLeft and cBottom >= cRight and cBottom >= cTop:
-			return returnVal, False, True, False, False
+			return returnVal, False, True, False, False, b_pixels
 		elif cLeft >= cRight and cLeft >= cBottom and cLeft >= cTop:
-			return returnVal, False, False, True, False
+			return returnVal, False, False, True, False, b_pixels
 		else:
-			return returnVal, False, False, False, True
+			return returnVal, False, False, False, True, b_pixels
 
 
 
@@ -217,7 +217,7 @@ if __name__ == '__main__':
 	try:
 		args = sys.argv[1]
 	except:
-		args = "input/filesm.txt"
+		args = "input/files2.txt"
 	print("Parameters : ", args)
 	s = PanoStitcher(args)
 	s.blend = False
